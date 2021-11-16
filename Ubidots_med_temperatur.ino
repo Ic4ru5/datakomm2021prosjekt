@@ -22,8 +22,10 @@ const char *UBIDOTS_TOKEN = "BBFF-fj6fUms2Cn65pI6onX4N5oQZvtRbYe";  // Put here 
 const char *WIFI_SSID = "8=========D";      // Put here your Wi-Fi SSID
 const char *WIFI_PASS = "ECDeiendom";      // Put here your Wi-Fi password
 const char *DEVICE_LABEL = "edvard";   // Put here your Device label to which data  will be published
-const char *VARIABLE_LABEL = "temperatur"; // Put here your Variable label to which data  will be published
-const char *VARIABLE_LABEL1 = "tekst";
+const char *Temperatur = "temperatur"; // Put here your Variable label to which data  will be published
+const char *Fuktighet = "fuktighet";
+const char *Trykk = "trykk";
+const char *Height = "height";
 const int PUBLISH_FREQUENCY = 5000; // Update rate in milliseconds
 
 unsigned long timer;
@@ -70,14 +72,38 @@ void loop()
   }
   if (millis() - timer > PUBLISH_FREQUENCY) // triggers the routine every 5 seconds
   {
-    //int x = rand()%1000; 
+    //Temperatur
     float value = bme.readTemperature();
     Serial.print("Temperature = ");
     Serial.print(bme.readTemperature());
     Serial.println(" °C");
     Serial.println();
-    ubidots.add(VARIABLE_LABEL, value); // Insert your variable Labels and the value to be sent
+    ubidots.add(Temperatur, value); // Insert your variable Labels and the value to be sent
     ubidots.publish(DEVICE_LABEL);
+    //Fuktighet
+    float value2 = bme.readHumidity();
+    Serial.print("Humidity = ");
+    Serial.print(bme.readHumidity());
+    Serial.println(" %");
+    Serial.println();
+    ubidots.add(Fuktighet, value2); // Insert your variable Labels and the value to be sent
+    ubidots.publish(DEVICE_LABEL);
+    //Trykk
+    float value3 = bme.readPressure();
+    Serial.print("Pressure = ");
+    Serial.print(bme.readPressure());
+    Serial.println(" hPa");
+    Serial.println();
+    ubidots.add(Trykk, value3); // Insert your variable Labels and the value to be sent
+    ubidots.publish(DEVICE_LABEL);
+    //Moh    
+    float value4 = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    Serial.print("Approx. Altitude = ");
+    Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
+    Serial.println(" moh");
+    Serial.println();
+    ubidots.add(Height, value4); // Insert your variable Labels and the value to be sent
+    ubidots.publish(DEVICE_LABEL);   
     timer = millis();
   }
 
