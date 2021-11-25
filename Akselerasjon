@@ -2,7 +2,7 @@
 #include <Adafruit_ICM20948.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
-#include <UbidotsEsp32Mqtt.h>
+#include "UbidotsEsp32Mqtt.h"
 #include <time.h>
 #include <cmath>
 
@@ -15,13 +15,6 @@ const int PUBLISH_FREQUENCY = 5000; // Update rate in milliseconds
 Adafruit_ICM20948 icm;
 unsigned long timer;
 Ubidots ubidots(UBIDOTS_TOKEN);
-
-// For SPI mode, we need a CS pin
-//#define ICM_CS 10
-// For software-SPI mode we need SCK/MOSI/MISO pins
-//#define ICM_SCK 13
-//#define ICM_MISO 12
-//#define ICM_MOSI 11
 
 /****************************************
  * Auxiliar Functions
@@ -39,6 +32,69 @@ void callback(char *topic, byte *payload, unsigned int length)
   Serial.println();
 }
 
+void magnetCalibration(){
+ float xMax = -1000;
+ float xMin = 1000;
+ float yMax = -1000;
+ float yMin = 1000;
+ float zMax = -1000;
+ float zMin = 1000;
+ int i = 0;
+ Serial.println("Starting calibration.");
+ while (i < 500){
+  sensors_event_t accel;
+  sensors_event_t gyro;
+  sensors_event_t mag;
+  sensors_event_t temp;
+  icm.getEvent(&accel, &gyro, &temp, &mag);
+  
+ if (mag.magnetic.x > xMax) {
+  xMax = mag.magnetic.x;  
+ }
+ if (mag.magnetic.x < xMin) {
+  xMin = mag.magnetic.x;
+ }
+ if (mag.magnetic.y > yMax) {
+  yMax = mag.magnetic.y;
+ }
+ if (mag.magnetic.y < yMin) {
+  yMin = mag.magnetic.y;
+ }
+ if (mag.magnetic.z > zMax) {
+  zMax = mag.magnetic.z;
+ }
+ if (mag.magnetic.z < zMin) {
+  zMin = mag.magnetic.z;
+ }
+ 
+ delay(25);
+ i = i +1;
+ }
+ 
+ Serial.print("Magnet XMax: ");
+ Serial.println(xMax);
+ Serial.print("Magnet XMin: ");
+ Serial.println(xMin);
+ Serial.print("Magnet YMax: ");
+ Serial.println(yMax);
+ Serial.print("Magnet YMin: ");
+ Serial.println(yMin);
+ Serial.print("Magnet ZMax: ");
+ Serial.println(zMax);
+ Serial.print("Magnet ZMin: ");
+ Serial.println(zMin);
+ Serial.println("Calibration ended.");
+ float xScaled;
+ sensors_event_t mag;
+ xScaled = (2 * (mag.magnetic.x - xMin) / (xMax - xMin)) - 1;
+ Serial.println(xScaled);
+}
+
+/*void magnetScale() {
+  float xScaled;
+  xScaled = (2 * (mag.magnetic.x - xMin) / (xMax - xMin)) - 1;
+}
+*/
 void setup(void) {
   Serial.begin(115200);
   while (!Serial) {
@@ -80,7 +136,6 @@ void setup(void) {
     break;
   }
   Serial.println("OK");
-
   // icm.setGyroRange(ICM20948_GYRO_RANGE_2000_DPS);
   Serial.print("Gyro range set to: ");
   switch (icm.getGyroRange()) {
@@ -139,6 +194,7 @@ void setup(void) {
     break;
   }
   Serial.println();
+  magnetCalibration();
 }
 
 void loop() {
@@ -149,7 +205,6 @@ void loop() {
   sensors_event_t mag;
   sensors_event_t temp;
   icm.getEvent(&accel, &gyro, &temp, &mag);
-  
   if (!ubidots.connected())
    {
      ubidots.reconnect();
