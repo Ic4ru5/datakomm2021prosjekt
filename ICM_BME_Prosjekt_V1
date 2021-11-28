@@ -1,0 +1,381 @@
+#include "UbidotsEsp32Mqtt.h"
+#include <Wire.h>
+#include <time.h>
+#include <stdlib.h>
+#include <Adafruit_ICM20X.h>
+#include <Adafruit_ICM20948.h>
+#include <Adafruit_Sensor.h>
+#include <cmath>
+
+//Alt med BM280
+#include <SPI.h>
+#include <Adafruit_BME280.h>
+#define SEALEVELPRESSURE_HPA (999)
+// BME280 I2C address is 0x76(108)
+#define Addr 0x76
+#define Addr2 0x68
+Adafruit_BME280 bme; // I2C
+Adafruit_ICM20948 icm;
+//Slutt med BM280
+
+/****************************************
+ * Define Constants
+ ****************************************/
+const char *UBIDOTS_TOKEN = "BBFF-xnntRZDHI7xlR2aAk1DPCapV4tlbuP";  // Put here your Ubidots TOKEN
+const char *WIFI_SSID = "Iphone exs";      // Put here your Wi-Fi SSID
+const char *WIFI_PASS = "123456789";      // Put here your Wi-Fi password
+const char *DEVICE_LABEL = "Prosjekt";   // Put here your Device label to which data  will be published
+const char *Temperatur = "temperatur"; // Put here your Variable label to which data  will be published
+const char *Fuktighet = "fuktighet";
+const char *Trykk = "trykk";
+const char *Height = "height";
+const char *VARIABLE_LABEL = "Akselerometer";
+const int PUBLISH_FREQUENCY = 5000; // Update rate in milliseconds
+const int Sensor_BME_Reading_Frekvens = 500; //Hvor ofte man leser av BME280
+const int Sensor_ICM_Reading_Frekvens = 500; //Hvor ofte man leser av ICM
+//Variabler brukt for å finne snittet av 10 målinger.
+float TempSnitt[10]; //an array capable of holding 10 entries numbered 0 to 9
+float TrykkSnitt[10];
+float FuktighetSnitt[10];
+float HoydeSnitt[10];
+float total = 0;   //Sum av de siste 10 målinger
+float total2 = 0;
+float total3 = 0;
+float total4 = 0;
+float Snitt = 0;  //Snittet av de siste 10 målinger
+float Snitt2 = 0;
+float Snitt3 = 0;
+float Snitt4 = 0;
+float Antall_Sample = 10;
+byte arrayIndex = 0;
+int BegynnPublisering = 0;
+unsigned long timer;
+unsigned long timer2;
+unsigned long timer3;
+Ubidots ubidots(UBIDOTS_TOKEN);
+
+/****************************************
+ * Auxiliar Functions
+ ****************************************/
+void callback(char *topic, byte *payload, unsigned int length)
+{
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++)
+  {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
+
+void magnetCalibration(){
+ float xMax = -1000;
+ float xMin = 1000;
+ float yMax = -1000;
+ float yMin = 1000;
+ float zMax = -1000;
+ float zMin = 1000;
+ int i = 0;
+ Serial.println("Starting calibration.");
+ while (i < 500){
+  sensors_event_t accel;
+  sensors_event_t gyro;
+  sensors_event_t mag;
+  sensors_event_t temp;
+  icm.getEvent(&accel, &gyro, &temp, &mag);
+  
+ if (mag.magnetic.x > xMax) {
+  xMax = mag.magnetic.x;  
+ }
+ if (mag.magnetic.x < xMin) {
+  xMin = mag.magnetic.x;
+ }
+ if (mag.magnetic.y > yMax) {
+  yMax = mag.magnetic.y;
+ }
+ if (mag.magnetic.y < yMin) {
+  yMin = mag.magnetic.y;
+ }
+ if (mag.magnetic.z > zMax) {
+  zMax = mag.magnetic.z;
+ }
+ if (mag.magnetic.z < zMin) {
+  zMin = mag.magnetic.z;
+ }
+ 
+ delay(25);
+ i = i +1;
+ }
+ 
+ Serial.print("Magnet XMax: ");
+ Serial.println(xMax);
+ Serial.print("Magnet XMin: ");
+ Serial.println(xMin);
+ Serial.print("Magnet YMax: ");
+ Serial.println(yMax);
+ Serial.print("Magnet YMin: ");
+ Serial.println(yMin);
+ Serial.print("Magnet ZMax: ");
+ Serial.println(zMax);
+ Serial.print("Magnet ZMin: ");
+ Serial.println(zMin);
+ Serial.println("Calibration ended.");
+ float xScaled;
+ sensors_event_t mag;
+ xScaled = (2 * (mag.magnetic.x - xMin) / (xMax - xMin)) - 1;
+ Serial.println(xScaled);
+}
+
+/*void magnetScale() {
+  float xScaled;
+  xScaled = (2 * (mag.magnetic.x - xMin) / (xMax - xMin)) - 1;
+}
+*/
+
+//BME280 funksjoner
+void Snitt_Array(){   //Funksjon for utregning av snittet
+  for (int i = 0; i < 10; i++ ){
+    total = total + TempSnitt[i];
+    total2 = total2 + TrykkSnitt[i];
+    total3 = total3 + HoydeSnitt[i];
+    total4 = total4 + FuktighetSnitt[i];
+  }
+  Snitt = total / Antall_Sample;
+  Snitt2 = total2 / Antall_Sample;
+  Snitt3 = total3 / Antall_Sample;
+  Snitt4 = total4 / Antall_Sample;
+  total = 0;
+  total2 = 0;
+  total3 = 0;
+  total4 = 0;
+}
+
+void UbidotPublisering() {  //Funksjon som publiserer snittet av 10 målinger til Ubidots.com
+    //Temperatur
+    ubidots.add(Temperatur, Snitt); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
+    //Fuktighet
+    ubidots.add(Trykk, Snitt2); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
+    //Trykk
+    ubidots.add(Height, Snitt3); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
+    //Moh    
+    ubidots.add(Fuktighet, Snitt4); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
+    ubidots.publish(DEVICE_LABEL);  //Ubidots som det skal publiseres til
+}
+
+void printValues() {    //Funksjon som skriver verdier terminalvinduet
+    Serial.print("Temperature = ");
+    Serial.print(bme.readTemperature());
+    Serial.println(" °C");
+    Serial.print("Pressure = ");
+    Serial.print(bme.readPressure() / 100.0F);
+    Serial.println(" hPa");
+    Serial.print("Approx. Altitude = ");
+    Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
+    Serial.println(" m");
+    Serial.print("Humidity = ");
+    Serial.print(bme.readHumidity());
+    Serial.println(" %");
+    Serial.println();
+}
+
+
+
+void setup(void) {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  srand(time(NULL));  
+  //ubidots.setDebug(true);  // uncomment this to make debug messages available
+  ubidots.connectToWifi(WIFI_SSID, WIFI_PASS);
+  ubidots.setCallback(callback);
+  ubidots.setup();
+  ubidots.reconnect();
+  timer = millis();
+  timer2 = millis();
+  timer3 = millis();
+  bme.begin(Addr);  //BM280
+  icm.begin_I2C(Addr2); //icm
+ 
+  // Try to initialize!
+  if (!icm.begin_I2C(Addr2)) {
+    // if (!icm.begin_SPI(ICM_CS)) {
+    // if (!icm.begin_SPI(ICM_CS, ICM_SCK, ICM_MISO, ICM_MOSI)) {
+
+    Serial.println("Failed to find ICM20948 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+
+  Serial.println("ICM20948 Found!");
+  // icm.setAccelRange(ICM20948_ACCEL_RANGE_16_G);
+  Serial.print("Accelerometer range set to: ");
+  switch (icm.getAccelRange()) {
+  case ICM20948_ACCEL_RANGE_2_G:
+    Serial.println("+-2G");
+    break;
+  case ICM20948_ACCEL_RANGE_4_G:
+    Serial.println("+-4G");
+    break;
+  case ICM20948_ACCEL_RANGE_8_G:
+    Serial.println("+-8G");
+    break;
+  case ICM20948_ACCEL_RANGE_16_G:
+    Serial.println("+-16G");
+    break;
+  }
+  Serial.println("OK");
+  // icm.setGyroRange(ICM20948_GYRO_RANGE_2000_DPS);
+  Serial.print("Gyro range set to: ");
+  switch (icm.getGyroRange()) {
+  case ICM20948_GYRO_RANGE_250_DPS:
+    Serial.println("250 degrees/s");
+    break;
+  case ICM20948_GYRO_RANGE_500_DPS:
+    Serial.println("500 degrees/s");
+    break;
+  case ICM20948_GYRO_RANGE_1000_DPS:
+    Serial.println("1000 degrees/s");
+    break;
+  case ICM20948_GYRO_RANGE_2000_DPS:
+    Serial.println("2000 degrees/s");
+    break;
+  }
+
+  //  icm.setAccelRateDivisor(4095);
+  uint16_t accel_divisor = icm.getAccelRateDivisor();
+  float accel_rate = 1125 / (1.0 + accel_divisor);
+
+  Serial.print("Accelerometer data rate divisor set to: ");
+  Serial.println(accel_divisor);
+  Serial.print("Accelerometer data rate (Hz) is approximately: ");
+  Serial.println(accel_rate);
+
+  //  icm.setGyroRateDivisor(255);
+  uint8_t gyro_divisor = icm.getGyroRateDivisor();
+  float gyro_rate = 1100 / (1.0 + gyro_divisor);
+
+  Serial.print("Gyro data rate divisor set to: ");
+  Serial.println(gyro_divisor);
+  Serial.print("Gyro data rate (Hz) is approximately: ");
+  Serial.println(gyro_rate);
+
+  // icm.setMagDataRate(AK09916_MAG_DATARATE_10_HZ);
+  Serial.print("Magnetometer data rate set to: ");
+  switch (icm.getMagDataRate()) {
+  case AK09916_MAG_DATARATE_SHUTDOWN:
+    Serial.println("Shutdown");
+    break;
+  case AK09916_MAG_DATARATE_SINGLE:
+    Serial.println("Single/One shot");
+    break;
+  case AK09916_MAG_DATARATE_10_HZ:
+    Serial.println("10 Hz");
+    break;
+  case AK09916_MAG_DATARATE_20_HZ:
+    Serial.println("20 Hz");
+    break;
+  case AK09916_MAG_DATARATE_50_HZ:
+    Serial.println("50 Hz");
+    break;
+  case AK09916_MAG_DATARATE_100_HZ:
+    Serial.println("100 Hz");
+    break;
+  }
+  Serial.println();
+  magnetCalibration();
+}
+
+
+
+void loop() {
+  //  /* Get a new normalized sensor event */
+  sensors_event_t accel;
+  sensors_event_t gyro;
+  sensors_event_t mag;
+  sensors_event_t temp;
+  icm.getEvent(&accel, &gyro, &temp, &mag);
+  
+  if (!ubidots.connected()){
+    ubidots.reconnect();
+  }
+  //ICM
+  if (millis() - timer3 > Sensor_ICM_Reading_Frekvens){
+  Serial.print("\t\tTemperature ");
+  Serial.print(temp.temperature);
+  Serial.println(" deg C");
+
+  /* Display the results (acceleration is measured in m/s^2) */
+  Serial.print("\t\tAccel X: ");
+  Serial.print(accel.acceleration.x);
+  Serial.print(" \tY: ");
+  Serial.print(accel.acceleration.y);
+  Serial.print(" \tZ: ");
+  Serial.print(accel.acceleration.z);
+  Serial.println(" m/s^2 ");
+  
+
+  Serial.print("\t\tMag X: ");
+  Serial.print(mag.magnetic.x);
+  Serial.print(" \tY: ");
+  Serial.print(mag.magnetic.y);
+  Serial.print(" \tZ: ");
+  Serial.print(mag.magnetic.z);
+  Serial.println(" uT");
+
+  /* Display the results (acceleration is measured in m/s^2) */
+  Serial.print("\t\tGyro X: ");
+  Serial.print(gyro.gyro.x);
+  Serial.print(" \tY: ");
+  Serial.print(gyro.gyro.y);
+  Serial.print(" \tZ: ");
+  Serial.print(gyro.gyro.z);
+  Serial.println(" radians/s ");
+  Serial.println();
+  timer3 = millis();
+  }
+  //ICM slutt
+
+  
+  //BME280
+  if (millis() - timer2 > Sensor_BME_Reading_Frekvens){ // triggers the routine every 500 ms
+    //Temperatur
+    float value = bme.readTemperature();
+    //Fuktighet
+    float value2 = bme.readPressure() / 100.0F;
+    //Trykk
+    float value3 = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    //Moh    
+    float value4 = bme.readHumidity();
+    //Lagring i arrays
+    TempSnitt[arrayIndex] = value;  //put a value in entry 0
+    TrykkSnitt[arrayIndex] = value2;
+    HoydeSnitt[arrayIndex] = value3;
+    FuktighetSnitt[arrayIndex] = value4;
+    arrayIndex++;  //increment the array index
+    if (arrayIndex >= 10) {
+      arrayIndex = 0;
+      BegynnPublisering = 1;
+    }
+      //Printe verdier i terminal
+    printValues();
+    Snitt_Array();  //finne snitt av rekkene
+    timer2 = millis(); 
+  }
+  //BME280 slutt
+  
+  if (millis() - timer > PUBLISH_FREQUENCY && BegynnPublisering == 1) // triggers the routine every 5 seconds
+  {
+    float VALUE0 = sqrt((accel.acceleration.z)* (accel.acceleration.z) + (accel.acceleration.x)*(accel.acceleration.x) + (accel.acceleration.y)*(accel.acceleration.y));
+    Serial.println();
+    Serial.print(VALUE0);
+    Serial.println();
+    ubidots.add(VARIABLE_LABEL,VALUE0);
+    ubidots.publish(DEVICE_LABEL);
+    UbidotPublisering();
+    timer = millis();
+  }
+  
+
+  ubidots.loop();
+}
