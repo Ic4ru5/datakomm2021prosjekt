@@ -26,11 +26,11 @@ const char *UBIDOTS_TOKEN = "BBFF-xnntRZDHI7xlR2aAk1DPCapV4tlbuP";  // Din Ubido
 const char *WIFI_SSID = "Iphone exs";      // Skriv inn din Wi-Fi SSID
 const char *WIFI_PASS = "123456789";      // Skriv inn ditt Wi-Fi password
 const char *DEVICE_LABEL = "Prosjekt";   // Skriv inn din enhet som data vil bli publisert til
-const char *Temperatur = "temperatur"; // Skriv inn ditt navn på variabel som data vil bli publisert til
-const char *Fuktighet = "fuktighet";  
-const char *Trykk = "trykk";
-const char *Height = "height";
-const char *VARIABLE_LABEL = "Akselerometer";
+const char *Temperatur = "temperatur_2"; // Skriv inn ditt navn på variabel som data vil bli publisert til
+const char *Fuktighet = "fuktighet_2";  
+const char *Trykk = "trykk_2";
+const char *Height = "height_2";
+const char *Akselerometer = "akselerometer_2";
 const int PUBLISH_FREQUENCY = 5000; // Frekvens på publiserings til Ubidot
 const int Sensor_BME_Reading_Frekvens = 500; //Hvor ofte noden leser sensorverdier på BME280
 const int Sensor_ICM_Reading_Frekvens = 500; //Hvor ofte noden leser sensorverdier på ICM
@@ -153,12 +153,6 @@ void Snitt_Array(){   //Funksjon for utregning av snittet
 }
 
 void UbidotPublisering() {  //Funksjon som publiserer data til Ubidots. felles for ICM20948 og BME280
-    //ICM20948
-    float VALUE0 = sqrt((accel.acceleration.z)* (accel.acceleration.z) + (accel.acceleration.x)*(accel.acceleration.x) + (accel.acceleration.y)*(accel.acceleration.y));
-    Serial.println();
-    Serial.print(VALUE0);
-    Serial.println();
-    ubidots.add(VARIABLE_LABEL,VALUE0);
     //BME280
     ubidots.add(Temperatur, Snitt); //Temperatur    Navn på fidget i Ubidots og hvilken variabel som skal publisert
     ubidots.add(Trykk, Snitt2);     //Fuktighet   
@@ -350,7 +344,7 @@ void loop() {
     HoydeSnitt[arrayIndex] = value3;                      //Setter høyde inn i en rekke
     FuktighetSnitt[arrayIndex] = value4;                  //Setter fuktighet i en rekke
     arrayIndex++;                                         //Indeks for hvilken posisjon i rekkene data blir publisert til.
-    if (arrayIndex >= 10) {                               //If løkke som nullstiller arrayIndex
+    if (arrayIndex >= Antall_Sample) {                               //If løkke som nullstiller arrayIndex
       arrayIndex = 0;
       BegynnPublisering = 1;  
     }
@@ -362,6 +356,11 @@ void loop() {
   
   //If løkke for publisering av data til ubidots
   if (millis() - timer > PUBLISH_FREQUENCY && BegynnPublisering == 1) {     // Utløser denne rutinene hvert "PUBLISH_FREQUENCY" millisekund
+    float VALUE0 = sqrt((accel.acceleration.z)* (accel.acceleration.z) + (accel.acceleration.x)*(accel.acceleration.x) + (accel.acceleration.y)*(accel.acceleration.y));
+    ubidots.add(Akselerometer,VALUE0);
+    Serial.println();
+    Serial.print(VALUE0);
+    Serial.println();
     UbidotPublisering();  //Funksjon som publiser data til Ubidot etter ønsket frekvens
     timer = millis();     //Nullstiller "timer" slik at løkka ikke utløser seg før en viss tid har gått
   }
