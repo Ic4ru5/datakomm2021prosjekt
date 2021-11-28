@@ -1,57 +1,58 @@
 #include "UbidotsEsp32Mqtt.h"
 #include <Wire.h>
 #include <time.h>
+
+//Biblotek for ICM20948
 #include <stdlib.h>
 #include <Adafruit_ICM20X.h>
 #include <Adafruit_ICM20948.h>
 #include <Adafruit_Sensor.h>
 #include <cmath>
 
-//Alt med BM280
+//Biblotek for BM280
 #include <SPI.h>
 #include <Adafruit_BME280.h>
 #define SEALEVELPRESSURE_HPA (999)
-// BME280 I2C address is 0x76(108)
-#define Addr 0x76
-#define Addr2 0x68
+
+#define Addr 0x76 //BME280 I2C address is 0x76
+#define Addr2 0x68 //ICM20948 I2C address is 0x68
 Adafruit_BME280 bme; // I2C
 Adafruit_ICM20948 icm;
-//Slutt med BM280
 
 /****************************************
  * Define Constants
  ****************************************/
-const char *UBIDOTS_TOKEN = "BBFF-xnntRZDHI7xlR2aAk1DPCapV4tlbuP";  // Put here your Ubidots TOKEN
-const char *WIFI_SSID = "Iphone exs";      // Put here your Wi-Fi SSID
-const char *WIFI_PASS = "123456789";      // Put here your Wi-Fi password
-const char *DEVICE_LABEL = "Prosjekt";   // Put here your Device label to which data  will be published
-const char *Temperatur = "temperatur"; // Put here your Variable label to which data  will be published
-const char *Fuktighet = "fuktighet";
+const char *UBIDOTS_TOKEN = "BBFF-xnntRZDHI7xlR2aAk1DPCapV4tlbuP";  // Din Ubidots TOKEN
+const char *WIFI_SSID = "Iphone exs";      // Skriv inn din Wi-Fi SSID
+const char *WIFI_PASS = "123456789";      // Skriv inn ditt Wi-Fi password
+const char *DEVICE_LABEL = "Prosjekt";   // Skriv inn din enhet som data vil bli publisert til
+const char *Temperatur = "temperatur"; // Skriv inn ditt navn på variabel som data vil bli publisert til
+const char *Fuktighet = "fuktighet";  
 const char *Trykk = "trykk";
 const char *Height = "height";
 const char *VARIABLE_LABEL = "Akselerometer";
-const int PUBLISH_FREQUENCY = 5000; // Update rate in milliseconds
-const int Sensor_BME_Reading_Frekvens = 500; //Hvor ofte man leser av BME280
-const int Sensor_ICM_Reading_Frekvens = 500; //Hvor ofte man leser av ICM
+const int PUBLISH_FREQUENCY = 5000; // Frekvens på publiserings til Ubidot
+const int Sensor_BME_Reading_Frekvens = 500; //Hvor ofte noden leser sensorverdier på BME280
+const int Sensor_ICM_Reading_Frekvens = 500; //Hvor ofte noden leser sensorverdier på ICM
 //Variabler brukt for å finne snittet av 10 målinger.
-float TempSnitt[10]; //an array capable of holding 10 entries numbered 0 to 9
+float TempSnitt[10]; //En rekke med 10 verdier med index 0 to 9
 float TrykkSnitt[10];
 float FuktighetSnitt[10];
 float HoydeSnitt[10];
-float total = 0;   //Sum av de siste 10 målinger
-float total2 = 0;
-float total3 = 0;
-float total4 = 0;
-float Snitt = 0;  //Snittet av de siste 10 målinger
-float Snitt2 = 0;
-float Snitt3 = 0;
-float Snitt4 = 0;
-float Antall_Sample = 10;
-byte arrayIndex = 0;
-int BegynnPublisering = 0;
-unsigned long timer;
-unsigned long timer2;
-unsigned long timer3;
+float total = 0;    //Temperatur - Sum av de siste 10 målinger
+float total2 = 0;   //Trykk
+float total3 = 0;   //Høyde
+float total4 = 0;   //Fuktighet
+float Snitt = 0;    //YTemperatur - Snittet av de siste 10 målinger
+float Snitt2 = 0;   //Trykk
+float Snitt3 = 0;   //Høyde
+float Snitt4 = 0;   //Fuktighet
+float Antall_Sample = 10; //Antall prøver som bllir med i utregning
+byte arrayIndex = 0;  //Start index for rekkene
+int BegynnPublisering = 0;  //En variabel som stopper noden å publisere data før den har ti målinger
+unsigned long timer;    //Variabel for publisering av data til Ubidot
+unsigned long timer2;   //Frekvens for BME280
+unsigned long timer3;   //Frekvens for ICM20948
 Ubidots ubidots(UBIDOTS_TOKEN);
 
 /****************************************
@@ -151,15 +152,18 @@ void Snitt_Array(){   //Funksjon for utregning av snittet
   total4 = 0;
 }
 
-void UbidotPublisering() {  //Funksjon som publiserer snittet av 10 målinger til Ubidots.com
-    //Temperatur
-    ubidots.add(Temperatur, Snitt); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
-    //Fuktighet
-    ubidots.add(Trykk, Snitt2); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
-    //Trykk
-    ubidots.add(Height, Snitt3); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
-    //Moh    
-    ubidots.add(Fuktighet, Snitt4); // Navn på fidget i Ubidots og hvilken variabel som skal publisert
+void UbidotPublisering() {  //Funksjon som publiserer data til Ubidots. felles for ICM20948 og BME280
+    //ICM20948
+    float VALUE0 = sqrt((accel.acceleration.z)* (accel.acceleration.z) + (accel.acceleration.x)*(accel.acceleration.x) + (accel.acceleration.y)*(accel.acceleration.y));
+    Serial.println();
+    Serial.print(VALUE0);
+    Serial.println();
+    ubidots.add(VARIABLE_LABEL,VALUE0);
+    //BME280
+    ubidots.add(Temperatur, Snitt); //Temperatur    Navn på fidget i Ubidots og hvilken variabel som skal publisert
+    ubidots.add(Trykk, Snitt2);     //Fuktighet   
+    ubidots.add(Height, Snitt3);    //Trykk      
+    ubidots.add(Fuktighet, Snitt4); //Moh  
     ubidots.publish(DEVICE_LABEL);  //Ubidots som det skal publiseres til
 }
 
@@ -179,8 +183,6 @@ void printValues() {    //Funksjon som skriver verdier terminalvinduet
     Serial.println();
 }
 
-
-
 void setup(void) {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -193,8 +195,8 @@ void setup(void) {
   timer = millis();
   timer2 = millis();
   timer3 = millis();
-  bme.begin(Addr);  //BM280
-  icm.begin_I2C(Addr2); //icm
+  bme.begin(Addr);  //BM280 på addresse 0x76
+  icm.begin_I2C(Addr2); //icm på addresse 0x68
  
   // Try to initialize!
   if (!icm.begin_I2C(Addr2)) {
@@ -314,7 +316,6 @@ void loop() {
   Serial.print(accel.acceleration.z);
   Serial.println(" m/s^2 ");
   
-
   Serial.print("\t\tMag X: ");
   Serial.print(mag.magnetic.x);
   Serial.print(" \tY: ");
@@ -338,44 +339,31 @@ void loop() {
 
   
   //BME280
-  if (millis() - timer2 > Sensor_BME_Reading_Frekvens){ // triggers the routine every 500 ms
-    //Temperatur
-    float value = bme.readTemperature();
-    //Fuktighet
-    float value2 = bme.readPressure() / 100.0F;
-    //Trykk
-    float value3 = bme.readAltitude(SEALEVELPRESSURE_HPA);
-    //Moh    
-    float value4 = bme.readHumidity();
-    //Lagring i arrays
-    TempSnitt[arrayIndex] = value;  //put a value in entry 0
-    TrykkSnitt[arrayIndex] = value2;
-    HoydeSnitt[arrayIndex] = value3;
-    FuktighetSnitt[arrayIndex] = value4;
-    arrayIndex++;  //increment the array index
-    if (arrayIndex >= 10) {
+  if (millis() - timer2 > Sensor_BME_Reading_Frekvens){   //Utløser denne if løkka hvert "Sensor_BME_Reading_Frekvens" millisekund
+    float value = bme.readTemperature();                  //Temperatur
+    float value2 = bme.readPressure() / 100.0F;           //Trykk
+    float value3 = bme.readAltitude(SEALEVELPRESSURE_HPA);//Moh  
+    float value4 = bme.readHumidity();                    //Fuktighet
+                                                          //Lagring av disse verdier i rekker
+    TempSnitt[arrayIndex] = value;                        //Setter temperatur i en rekke ingang 0
+    TrykkSnitt[arrayIndex] = value2;                      //Setter trykk inn i en rekke
+    HoydeSnitt[arrayIndex] = value3;                      //Setter høyde inn i en rekke
+    FuktighetSnitt[arrayIndex] = value4;                  //Setter fuktighet i en rekke
+    arrayIndex++;                                         //Indeks for hvilken posisjon i rekkene data blir publisert til.
+    if (arrayIndex >= 10) {                               //If løkke som nullstiller arrayIndex
       arrayIndex = 0;
-      BegynnPublisering = 1;
+      BegynnPublisering = 1;  
     }
-      //Printe verdier i terminal
-    printValues();
-    Snitt_Array();  //finne snitt av rekkene
-    timer2 = millis(); 
+    printValues();            //Printe verdier i terminal for lokal kontroll
+    Snitt_Array();            //Funksjon som finner snitt av rekkene
+    timer2 = millis();        //Nullstiller temperatur
   }
   //BME280 slutt
   
-  if (millis() - timer > PUBLISH_FREQUENCY && BegynnPublisering == 1) // triggers the routine every 5 seconds
-  {
-    float VALUE0 = sqrt((accel.acceleration.z)* (accel.acceleration.z) + (accel.acceleration.x)*(accel.acceleration.x) + (accel.acceleration.y)*(accel.acceleration.y));
-    Serial.println();
-    Serial.print(VALUE0);
-    Serial.println();
-    ubidots.add(VARIABLE_LABEL,VALUE0);
-    ubidots.publish(DEVICE_LABEL);
-    UbidotPublisering();
-    timer = millis();
+  //If løkke for publisering av data til ubidots
+  if (millis() - timer > PUBLISH_FREQUENCY && BegynnPublisering == 1) {     // Utløser denne rutinene hvert "PUBLISH_FREQUENCY" millisekund
+    UbidotPublisering();  //Funksjon som publiser data til Ubidot etter ønsket frekvens
+    timer = millis();     //Nullstiller "timer" slik at løkka ikke utløser seg før en viss tid har gått
   }
-  
-
   ubidots.loop();
 }
