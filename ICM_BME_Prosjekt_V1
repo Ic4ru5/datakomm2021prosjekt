@@ -26,14 +26,14 @@ const char *UBIDOTS_TOKEN = "BBFF-xnntRZDHI7xlR2aAk1DPCapV4tlbuP";  // Din Ubido
 const char *WIFI_SSID = "Iphone exs";      // Skriv inn din Wi-Fi SSID
 const char *WIFI_PASS = "123456789";      // Skriv inn ditt Wi-Fi password
 const char *DEVICE_LABEL = "Prosjekt";   // Skriv inn din enhet som data vil bli publisert til
-const char *Temperatur = "temperatur_2"; // Skriv inn ditt navn på variabel som data vil bli publisert til
-const char *Fuktighet = "fuktighet_2";  
-const char *Trykk = "trykk_2";
-const char *Height = "height_2";
-const char *Akselerometer = "akselerometer_2";
+const char *Temperatur = "temperatur_1"; // Skriv inn ditt navn på variabel som data vil bli publisert til
+const char *Fuktighet = "fuktighet_1";  
+const char *Trykk = "trykk_1";
+const char *Height = "height_1";
+const char *Akselerometer = "akselerometer_1";
 const int PUBLISH_FREQUENCY = 5000; // Frekvens på publiserings til Ubidot
-const int Sensor_BME_Reading_Frekvens = 500; //Hvor ofte noden leser sensorverdier på BME280
-const int Sensor_ICM_Reading_Frekvens = 500; //Hvor ofte noden leser sensorverdier på ICM
+const int Sensor_BME_Reading_Frekvens = 10; //Hvor ofte noden leser sensorverdier på BME280
+const int Sensor_ICM_Reading_Frekvens = 10; //Hvor ofte noden leser sensorverdier på ICM
 //Variabler brukt for å finne snittet av 10 målinger.
 float TempSnitt[10]; //En rekke med 10 verdier med index 0 to 9
 float TrykkSnitt[10];
@@ -53,8 +53,13 @@ int BegynnPublisering = 0;  //En variabel som stopper noden å publisere data f�
 unsigned long timer;    //Variabel for publisering av data til Ubidot
 unsigned long timer2;   //Frekvens for BME280
 unsigned long timer3;   //Frekvens for ICM20948
+unsigned long timer4;   //Frekvens for terminal publisering
 Ubidots ubidots(UBIDOTS_TOKEN);
-
+  //  /* Get a new normalized sensor event */
+  sensors_event_t accel;
+  sensors_event_t gyro;
+  sensors_event_t mag;
+  sensors_event_t temp;
 /****************************************
  * Auxiliar Functions
  ****************************************/
@@ -134,6 +139,52 @@ void magnetCalibration(){
 }
 */
 
+void printValuesICM() {
+  Serial.print("Temperature ");
+  Serial.print(temp.temperature);
+  Serial.println(" deg C");
+
+  Serial.print("Accel X: ");  /* Display the results (acceleration is measured in m/s^2) */
+  Serial.print(accel.acceleration.x);
+  Serial.print(" \tY: ");
+  Serial.print(accel.acceleration.y);
+  Serial.print(" \tZ: ");
+  Serial.print(accel.acceleration.z);
+  Serial.println(" m/s^2 ");
+  
+  Serial.print("Mag X: ");
+  Serial.print(mag.magnetic.x);
+  Serial.print(" \tY: ");
+  Serial.print(mag.magnetic.y);
+  Serial.print(" \tZ: ");
+  Serial.print(mag.magnetic.z);
+  Serial.println(" uT");
+  
+  Serial.print("Gyro X: ");   /* Display the results (acceleration is measured in m/s^2) */
+  Serial.print(gyro.gyro.x);
+  Serial.print(" \tY: ");
+  Serial.print(gyro.gyro.y);
+  Serial.print(" \tZ: ");
+  Serial.print(gyro.gyro.z);
+  Serial.println(" radians/s ");
+  Serial.println();
+}
+void printValuesBME() {    //Funksjon som skriver verdier terminalvinduet
+    Serial.print("Temperature = ");
+    Serial.print(bme.readTemperature());
+    Serial.println(" °C");
+    Serial.print("Pressure = ");
+    Serial.print(bme.readPressure() / 100.0F);
+    Serial.println(" hPa");
+    Serial.print("Approx. Altitude = ");
+    Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
+    Serial.println(" m");
+    Serial.print("Humidity = ");
+    Serial.print(bme.readHumidity());
+    Serial.println(" %");
+    Serial.println();
+}
+
 //BME280 funksjoner
 void Snitt_Array(){   //Funksjon for utregning av snittet
   for (int i = 0; i < 10; i++ ){
@@ -154,27 +205,11 @@ void Snitt_Array(){   //Funksjon for utregning av snittet
 
 void UbidotPublisering() {  //Funksjon som publiserer data til Ubidots. felles for ICM20948 og BME280
     //BME280
-    ubidots.add(Temperatur, Snitt); //Temperatur    Navn på fidget i Ubidots og hvilken variabel som skal publisert
+    ubidots.add(Temperatur, Snitt); //Temperatur    Navn på fidget i Ubidots og hvilken variabel som skal bli publisert
     ubidots.add(Trykk, Snitt2);     //Fuktighet   
     ubidots.add(Height, Snitt3);    //Trykk      
     ubidots.add(Fuktighet, Snitt4); //Moh  
     ubidots.publish(DEVICE_LABEL);  //Ubidots som det skal publiseres til
-}
-
-void printValues() {    //Funksjon som skriver verdier terminalvinduet
-    Serial.print("Temperature = ");
-    Serial.print(bme.readTemperature());
-    Serial.println(" °C");
-    Serial.print("Pressure = ");
-    Serial.print(bme.readPressure() / 100.0F);
-    Serial.println(" hPa");
-    Serial.print("Approx. Altitude = ");
-    Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-    Serial.println(" m");
-    Serial.print("Humidity = ");
-    Serial.print(bme.readHumidity());
-    Serial.println(" %");
-    Serial.println();
 }
 
 void setup(void) {
@@ -189,21 +224,24 @@ void setup(void) {
   timer = millis();
   timer2 = millis();
   timer3 = millis();
+  timer4 = millis();
   bme.begin(Addr);  //BM280 på addresse 0x76
   icm.begin_I2C(Addr2); //icm på addresse 0x68
  
   // Try to initialize!
+  if (!bme.begin(Addr)) {
+    Serial.println("Misslyktes i å finne BME280 sensor");
+  }
+  else {
+  Serial.println("BME280 funnet!");
+  }
   if (!icm.begin_I2C(Addr2)) {
     // if (!icm.begin_SPI(ICM_CS)) {
     // if (!icm.begin_SPI(ICM_CS, ICM_SCK, ICM_MISO, ICM_MOSI)) {
-
-    Serial.println("Failed to find ICM20948 chip");
-    while (1) {
-      delay(10);
-    }
+    Serial.println("Misslyktes i å finne ICM20948 sensor");
   }
-
-  Serial.println("ICM20948 Found!");
+  else {
+  Serial.println("BME280 funnet!");
   // icm.setAccelRange(ICM20948_ACCEL_RANGE_16_G);
   Serial.print("Accelerometer range set to: ");
   switch (icm.getAccelRange()) {
@@ -280,9 +318,8 @@ void setup(void) {
   }
   Serial.println();
   magnetCalibration();
+  }
 }
-
-
 
 void loop() {
   //  /* Get a new normalized sensor event */
@@ -295,43 +332,13 @@ void loop() {
   if (!ubidots.connected()){
     ubidots.reconnect();
   }
+  
   //ICM
   if (millis() - timer3 > Sensor_ICM_Reading_Frekvens){
-  Serial.print("\t\tTemperature ");
-  Serial.print(temp.temperature);
-  Serial.println(" deg C");
-
-  /* Display the results (acceleration is measured in m/s^2) */
-  Serial.print("\t\tAccel X: ");
-  Serial.print(accel.acceleration.x);
-  Serial.print(" \tY: ");
-  Serial.print(accel.acceleration.y);
-  Serial.print(" \tZ: ");
-  Serial.print(accel.acceleration.z);
-  Serial.println(" m/s^2 ");
-  
-  Serial.print("\t\tMag X: ");
-  Serial.print(mag.magnetic.x);
-  Serial.print(" \tY: ");
-  Serial.print(mag.magnetic.y);
-  Serial.print(" \tZ: ");
-  Serial.print(mag.magnetic.z);
-  Serial.println(" uT");
-
-  /* Display the results (acceleration is measured in m/s^2) */
-  Serial.print("\t\tGyro X: ");
-  Serial.print(gyro.gyro.x);
-  Serial.print(" \tY: ");
-  Serial.print(gyro.gyro.y);
-  Serial.print(" \tZ: ");
-  Serial.print(gyro.gyro.z);
-  Serial.println(" radians/s ");
-  Serial.println();
   timer3 = millis();
   }
   //ICM slutt
 
-  
   //BME280
   if (millis() - timer2 > Sensor_BME_Reading_Frekvens){   //Utløser denne if løkka hvert "Sensor_BME_Reading_Frekvens" millisekund
     float value = bme.readTemperature();                  //Temperatur
@@ -348,11 +355,17 @@ void loop() {
       arrayIndex = 0;
       BegynnPublisering = 1;  
     }
-    printValues();            //Printe verdier i terminal for lokal kontroll
+                
     Snitt_Array();            //Funksjon som finner snitt av rekkene
-    timer2 = millis();        //Nullstiller temperatur
+    timer2 = millis();        //Nullstiller tiden for BCM sensor avlesning
   }
   //BME280 slutt
+
+  if (millis() - timer4 > 200){
+  printValuesICM(); //Printe verdier i terminal for lokal kontroll
+  printValuesBME(); //Printe verdier i terminal for lokal kontroll
+  timer4 = millis();
+  }
   
   //If løkke for publisering av data til ubidots
   if (millis() - timer > PUBLISH_FREQUENCY && BegynnPublisering == 1) {     // Utløser denne rutinene hvert "PUBLISH_FREQUENCY" millisekund
