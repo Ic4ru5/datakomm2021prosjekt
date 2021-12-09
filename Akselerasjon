@@ -16,6 +16,17 @@ Adafruit_ICM20948 icm;
 unsigned long timer;
 Ubidots ubidots(UBIDOTS_TOKEN);
 
+float xScaled;
+float yScaled;
+float zScaled;
+ float xMax = -1000;
+ float xMin = 1000;
+ float yMax = -1000;
+ float yMin = 1000;
+ float zMax = -1000;
+ float zMin = 1000;
+
+ 
 /****************************************
  * Auxiliar Functions
  ****************************************/
@@ -33,12 +44,7 @@ void callback(char *topic, byte *payload, unsigned int length)
 }
 
 void magnetCalibration(){
- float xMax = -1000;
- float xMin = 1000;
- float yMax = -1000;
- float yMin = 1000;
- float zMax = -1000;
- float zMin = 1000;
+
  int i = 0;
  Serial.println("Starting calibration.");
  while (i < 500){
@@ -84,10 +90,22 @@ void magnetCalibration(){
  Serial.print("Magnet ZMin: ");
  Serial.println(zMin);
  Serial.println("Calibration ended.");
- float xScaled;
+ 
+ sensors_event_t accel;
+ sensors_event_t gyro;
  sensors_event_t mag;
- xScaled = (2 * (mag.magnetic.x - xMin) / (xMax - xMin)) - 1;
+ sensors_event_t temp;
+ icm.getEvent(&accel, &gyro, &temp, &mag);
+ xScaled = map(mag.magnetic.x, xMin, xMax, -90, 90);
+ yScaled = map(mag.magnetic.y, yMin, yMax, -90, 90);
+ zScaled = map(mag.magnetic.z, zMin, zMax, -90, 90);
+ Serial.println(mag.magnetic.x);
  Serial.println(xScaled);
+ Serial.println(mag.magnetic.y);
+ Serial.println(yScaled);
+ Serial.println(mag.magnetic.z);
+ Serial.println(zScaled);
+ 
 }
 
 /*void magnetScale() {
@@ -121,37 +139,11 @@ void setup(void) {
   Serial.println("ICM20948 Found!");
   // icm.setAccelRange(ICM20948_ACCEL_RANGE_16_G);
   Serial.print("Accelerometer range set to: ");
-  switch (icm.getAccelRange()) {
-  case ICM20948_ACCEL_RANGE_2_G:
-    Serial.println("+-2G");
-    break;
-  case ICM20948_ACCEL_RANGE_4_G:
-    Serial.println("+-4G");
-    break;
-  case ICM20948_ACCEL_RANGE_8_G:
-    Serial.println("+-8G");
-    break;
-  case ICM20948_ACCEL_RANGE_16_G:
-    Serial.println("+-16G");
-    break;
-  }
-  Serial.println("OK");
+  Serial.println(icm.getAccelRange());  
   // icm.setGyroRange(ICM20948_GYRO_RANGE_2000_DPS);
   Serial.print("Gyro range set to: ");
-  switch (icm.getGyroRange()) {
-  case ICM20948_GYRO_RANGE_250_DPS:
-    Serial.println("250 degrees/s");
-    break;
-  case ICM20948_GYRO_RANGE_500_DPS:
-    Serial.println("500 degrees/s");
-    break;
-  case ICM20948_GYRO_RANGE_1000_DPS:
-    Serial.println("1000 degrees/s");
-    break;
-  case ICM20948_GYRO_RANGE_2000_DPS:
-    Serial.println("2000 degrees/s");
-    break;
-  }
+  Serial.println(icm.getGyroRange()) ;
+  
 
   //  icm.setAccelRateDivisor(4095);
   uint16_t accel_divisor = icm.getAccelRateDivisor();
@@ -173,27 +165,8 @@ void setup(void) {
 
   // icm.setMagDataRate(AK09916_MAG_DATARATE_10_HZ);
   Serial.print("Magnetometer data rate set to: ");
-  switch (icm.getMagDataRate()) {
-  case AK09916_MAG_DATARATE_SHUTDOWN:
-    Serial.println("Shutdown");
-    break;
-  case AK09916_MAG_DATARATE_SINGLE:
-    Serial.println("Single/One shot");
-    break;
-  case AK09916_MAG_DATARATE_10_HZ:
-    Serial.println("10 Hz");
-    break;
-  case AK09916_MAG_DATARATE_20_HZ:
-    Serial.println("20 Hz");
-    break;
-  case AK09916_MAG_DATARATE_50_HZ:
-    Serial.println("50 Hz");
-    break;
-  case AK09916_MAG_DATARATE_100_HZ:
-    Serial.println("100 Hz");
-    break;
-  }
-  Serial.println();
+  Serial.println(icm.getMagDataRate()) ;
+  delay(2000);
   magnetCalibration();
 }
 
@@ -240,6 +213,15 @@ void loop() {
   Serial.print(mag.magnetic.z);
   Serial.println(" uT");
 
+  xScaled = map(mag.magnetic.x, xMin, xMax, -90, 90);
+  yScaled = map(mag.magnetic.y, yMin, yMax, -90, 90);
+  zScaled = map(mag.magnetic.z, zMin, zMax, -90, 90);
+  Serial.print("XScaled:");
+  Serial.println(xScaled);
+  Serial.print("YScaled:");
+  Serial.println(yScaled);
+  Serial.print("ZScaled:");
+  Serial.println(zScaled);
   /* Display the results (acceleration is measured in m/s^2) */
   Serial.print("\t\tGyro X: ");
   Serial.print(gyro.gyro.x);
@@ -250,6 +232,6 @@ void loop() {
   Serial.println(" radians/s ");
   Serial.println();
 
-  delay(1000);
+  delay(500);
 
 }
