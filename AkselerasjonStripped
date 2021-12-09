@@ -91,6 +91,7 @@ void loop() {
   icm.getEvent(&accel, &gyro, &temp, &mag);
   if (!ubidots.connected())
    {
+     ubidots.connectToWifi(WIFI_SSID, WIFI_PASS);
      ubidots.reconnect();
    }
   if (abs(millis() - timer) > PUBLISH_FREQUENCY) // triggers the routine every 5 seconds
