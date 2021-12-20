@@ -4,28 +4,28 @@
 #include <stdlib.h>
 #include <cmath>
 
-//Biblotek for ICM20948
+//Bibliotek for ICM20948
 #include <Adafruit_ICM20X.h>
 #include <Adafruit_ICM20948.h>
 #include <Adafruit_Sensor.h>
 
-//Biblotek for BM280
+//Bibliotek for BM280
 #include <SPI.h>
 #include <Adafruit_BME280.h>
 
-#define SEALEVELPRESSURE_HPA (999)
-#define Addr 0x76 //BME280 I2C address is 0x76
-#define Addr2 0x68 //ICM20948 I2C address is 0x68
-Adafruit_BME280 bme; // I2C
+#define SEALEVELPRESSURE_HPA (999)        //Trykk ved havnivå der du er
+#define Addr 0x76                         //BME280 I2C address is 0x76
+#define Addr2 0x68                        //ICM20948 I2C address is 0x68
+Adafruit_BME280 bme;                      // I2C
 Adafruit_ICM20948 icm;
 
 //Definere konstanter
 const char *UBIDOTS_TOKEN = "BBFF-xnntRZDHI7xlR2aAk1DPCapV4tlbuP";  // Din Ubidots TOKEN
 const char *WIFI_SSID = "AndroidAP";      // Skriv inn din Wi-Fi SSID
-const char *WIFI_PASS = "melk4534";      // Skriv inn ditt Wi-Fi password
-const char *DEVICE_LABEL = "Prosjekt";   // Skriv inn din enhet som data vil bli publisert til
-const char *Temperatur = "Temperatur_1"; // Skriv inn ditt navn på variabel som data vil bli publisert til
-const char *Fuktighet = "Fuktighet_1";  
+const char *WIFI_PASS = "melk4534";       // Skriv inn ditt Wi-Fi password
+const char *DEVICE_LABEL = "Prosjekt";    // Skriv inn din enhet som data vil bli publisert til
+const char *Temperatur = "Temperatur_1";  // Skriv inn navn på variabel som data vil bli publisert til
+const char *Fuktighet = "Fuktighet_1";    
 const char *Trykk = "Trykk_1";
 const char *Height = "Høyde_1";
 const char *Akselerometer = "Akselerometer_1";
@@ -282,16 +282,16 @@ void loop() {
   }
   
   //If løkke for publisering av data til ubidots
-  if (BegynnPublisering == 1) {     // Utløser denne rutinene hvert "PUBLISH_FREQUENCY" millisekund
-    UbidotPublisering();  //Funksjon som publiser data til Ubidot etter ønsket frekvens
-    timer = millis(); //Nullstiller "timer" slik at løkka ikke utløser seg før en viss tid har gått
+  if (BegynnPublisering == 1) {       // Utløser denne rutinene hvert "PUBLISH_FREQUENCY" millisekund
+    UbidotPublisering();              //Funksjon som publiser data til Ubidot etter ønsket frekvens
+    timer = millis();                 //Nullstiller "timer" slik at løkka ikke utløser seg før en viss tid har gått
     ubidots.subscribeLastValue(DEVICE_LABEL, "publish_frequency");//Henter frekvens fra Ubidots
-    //Serial.print("Publish Frequency:");
-    //Serial.println(PUBLISH_FREQUENCY);
+      //Serial.print("Publish Frequency:");
+      //Serial.println(PUBLISH_FREQUENCY);
     Serial.println("Going back to sleep for:" +String(PUBLISH_FREQUENCY) + "ms.");
     esp_sleep_enable_timer_wakeup(PUBLISH_FREQUENCY * 1000); //Input i mikrosekund
     ubidots.disconnect();
-    //esp_wifi_disconnect();
+      //esp_wifi_disconnect();
     
     
     esp_deep_sleep_start();
