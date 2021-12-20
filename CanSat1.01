@@ -1,19 +1,19 @@
 #include "UbidotsEsp32Mqtt.h"
 #include <Wire.h>
 #include <time.h>
+#include <stdlib.h>
+#include <cmath>
 
 //Biblotek for ICM20948
-#include <stdlib.h>
 #include <Adafruit_ICM20X.h>
 #include <Adafruit_ICM20948.h>
 #include <Adafruit_Sensor.h>
-#include <cmath>
 
 //Biblotek for BM280
 #include <SPI.h>
 #include <Adafruit_BME280.h>
-#define SEALEVELPRESSURE_HPA (999)
 
+#define SEALEVELPRESSURE_HPA (999)
 #define Addr 0x76 //BME280 I2C address is 0x76
 #define Addr2 0x68 //ICM20948 I2C address is 0x68
 Adafruit_BME280 bme; // I2C
@@ -171,6 +171,8 @@ void UbidotPublisering() {  //Funksjon som publiserer data til Ubidots. felles f
 }
 
 void setup(void) {
+  
+  delay(100); //Gir den litt tid etter DeepSleep
   Serial.begin(115200);
   ubidots.setDebug(true);
   ubidots.connectToWifi(WIFI_SSID, WIFI_PASS);
@@ -184,7 +186,8 @@ void setup(void) {
   configTime(0, 0, ntpServer); //Time Server
   bme.begin(Addr);  //BM280 på addresse 0x76
   icm.begin_I2C(Addr2); //icm på addresse 0x68
- 
+  ubidots.subscribeLastValue(DEVICE_LABEL, "publish_frequency");
+  //Serial.println("Publish Frequency: " + String(PUBLISH_FREQUENCY));
  
   if (!bme.begin(Addr)) {
     Serial.println("Mislyktes å finne BME280 sensor");
@@ -279,13 +282,21 @@ void loop() {
   }
   
   //If løkke for publisering av data til ubidots
-  if (millis() - timer > PUBLISH_FREQUENCY && BegynnPublisering == 1) {     // Utløser denne rutinene hvert "PUBLISH_FREQUENCY" millisekund
+  if (BegynnPublisering == 1) {     // Utløser denne rutinene hvert "PUBLISH_FREQUENCY" millisekund
     UbidotPublisering();  //Funksjon som publiser data til Ubidot etter ønsket frekvens
     timer = millis(); //Nullstiller "timer" slik at løkka ikke utløser seg før en viss tid har gått
     ubidots.subscribeLastValue(DEVICE_LABEL, "publish_frequency");//Henter frekvens fra Ubidots
-    Serial.print("Publish Frequency:");
-    Serial.println(PUBLISH_FREQUENCY);
+    //Serial.print("Publish Frequency:");
+    //Serial.println(PUBLISH_FREQUENCY);
+    Serial.println("Going back to sleep for:" +String(PUBLISH_FREQUENCY) + "ms.");
+    esp_sleep_enable_timer_wakeup(PUBLISH_FREQUENCY * 1000); //Input i mikrosekund
+    ubidots.disconnect();
+    //esp_wifi_disconnect();
+    
+    
+    esp_deep_sleep_start();
+    
   }
   ubidots.loop();
-  delay(99); //Safety delay pga testing
+  //delay(99); //Safety delay pga testing
 }
