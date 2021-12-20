@@ -62,7 +62,7 @@ Ubidots ubidots(UBIDOTS_TOKEN);
   sensors_event_t mag;
   sensors_event_t temp;
 
-void callback(char *topic, byte *payload, unsigned int length)
+void callback(char *topic, byte *payload, unsigned int length) //Brukes for data som sendes fra Ubidots
 {
   String valuePF = "00000000";
   Serial.print("Message arrived [");
@@ -71,7 +71,7 @@ void callback(char *topic, byte *payload, unsigned int length)
   for (int i = 0; i < length; i++)
   {
     Serial.print((char)payload[i]);
-    valuePF[i] = char(payload[i]);
+    valuePF[i] = char(payload[i]); //Dette er verdien som er lest av ifra valgt variabel
   }
   PUBLISH_FREQUENCY = valuePF.toInt();
   //Serial.println("Value");
@@ -201,6 +201,7 @@ void setup(void) {
   else {
   Serial.println("ICM20948 funnet!");
   
+  //Under her er kode som viser rangen på sensorene
   // icm.setAccelRange(ICM20948_ACCEL_RANGE_16_G);
   Serial.print("Accelerometer range set to: ");
   Serial.println(icm.getAccelRange());  
@@ -242,7 +243,7 @@ void loop() {
   
   //ICM
   if (millis() - timer3 > Sensor_ICM_Reading_Frekvens){
-  //  /* Get a new normalized sensor event */
+  // Events for de forskjellige sensorene
   sensors_event_t accel;
   sensors_event_t gyro;
   sensors_event_t mag;
@@ -298,5 +299,4 @@ void loop() {
     
   }
   ubidots.loop();
-  //delay(99); //Safety delay pga testing
 }
